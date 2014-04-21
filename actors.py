@@ -2,7 +2,20 @@
 import random, pygame
 
 #customs
-import lists, constants, tools, loadImages, main
+import lists, constants, toolsV2, loadImages, main
+
+
+########################################################################
+class error(Exception):
+    """overrides"""
+
+    #----------------------------------------------------------------------
+    def __init__(self):
+        """Constructor"""
+        
+        print 'error'
+    
+    
 
 ########################################################################
 class Anything(object):
@@ -10,13 +23,15 @@ class Anything(object):
     will be  """
 
     #----------------------------------------------------------------------
-    def __init__(self, topSurface, position, imageListIn):
+    def __init__(self, topSurface, position, imageListIn, actType='ship'):
         """Constructor"""
         
+        #actor type, gun ship etc
+        self.actType = actType
+        
+        #main spritelist
         self.imageListIn = imageListIn
-        
         self.topSurface = topSurface
-        
         
         #size
         self.width = 32
@@ -32,13 +47,17 @@ class Anything(object):
         
         #movement
         self.speed = constants.unit / 5
-        self.direction = tools.vectors.normalize((1, 0))
+        self.direction = toolsV2.vectors.normalize((1, 0))
         self.moving = False
         
         #make a spriteList for drawing
         self.spriteIndex = 0
-        self.limbsNum = 0
-        self.assemble(imageListIn)        
+        self.flamesIndex = 0
+        self.assemble2(imageListIn, 1)        
+
+        #loads sprite images, from imageListIn
+        
+
 
         #degrees sprite is rotated
         self.currentRotation = 0
@@ -57,12 +76,45 @@ class Anything(object):
         
         #if hit wall
         self.wallHit = False
+        
+        #bounding boxes, the perimiter of the rects, in a list
+        self.bboxsList = self.getBboxes()
+        
+        #updates gun and exhaust points
+        self.findPoints()
+   
+        #is alive or not
+        self.alive = True
+        
+        #IDK
+        self.surface = self.combine()
+    #----------------------------------------------------------------------
+    def getBboxes(self):
+        """finds the 4 lines/rects that represent the outsides of the rect"""
+        sr = self.rect
+        
+        bboxes = []
+        
+        #top width line
+        tw = pygame.rect.Rect((sr.topleft), (sr.w, 1))
+        #bottom width
+        bw = pygame.rect.Rect((sr.bottomleft), (sr.w, 1))
+        #left height
+        lh = pygame.rect.Rect((sr.topleft), (1, sr.h))
+        #right height
+        rh = pygame.rect.Rect((sr.topright), (1, sr.h))
+        
+        for l in (tw, bw, lh, rh):
+            
+            bboxes.append(l)
+    
+        return bboxes
+    
     #----------------------------------------------------------------------
     def move(self):
         """moves the center of a rect for position"""
         
         if self.moving:
-            
             #change pos which is actually rect.center
             x, y = self.rect.center
             x += self.direction[0] * self.speed
@@ -97,15 +149,26 @@ class Anything(object):
     def draw(self, surface):
         """draw self.surface to screen, assign blitted surface as blitted"""
         
-        #draws a rect around the surface
-        pygame.draw.rect(surface, constants.BLUE, self.rect, 1)
         
         #blits the image to where rect it, blitted is the rect of where the thing is on screen
         self.blitted = surface.blit(self.surface, self.rect)
         
-        #print 'type',type(self)
-        
-        
+        box = 0
+        if box:
+            pass
+            pygame.draw.rect(surface, constants.RED,
+                             (self.exPt, (5, 5))
+                             ,2) 
+            pygame.draw.rect(surface, constants.RED,
+                             (self.gunPt, (5, 5))
+                             ,2) 
+            ##draws a rect around the surface
+            ##pygame.draw.rect(surface, constants.BLUE, self.rect, 1)
+            for rect in self.bboxsList:
+                pygame.draw.rect(surface, constants.BLUE, rect, 1)
+            
+            
+
         
     #----------------------------------------------------------------------
     def rotate(self, angle):
@@ -116,11 +179,13 @@ class Anything(object):
         
         #forgets old surface and resets it to default right facing one
         #self.surface = self.spriteList[self.spriteIndex]
-        self.surface = self.assAll()
-        
+        self.surface = self.combine()
+        #self.surface = self.assAll()
+
         #since blitted is the rect of surface on screen, takes its center (pos)
         #oldCenter = self.blitted.center
         oldCenter = self.rect.center
+        
         
         #rotate the newly reset surface
         self.surface = pygame.transform.rotate(self.surface, angle)
@@ -131,6 +196,9 @@ class Anything(object):
         
         #sets self.rect to the new surface
         self.rect = self.surface.get_rect()
+        #self.rect = self.bodySurface.get_rect() #for later use this, smaller
+
+        #print 'self.rect.w', self.rect.w
         #updates its pos to match original pos.
         self.rect.center = oldCenter
         
@@ -144,34 +212,48 @@ class Anything(object):
         
         
         #move
-        
-        
         self.move()
         
+        #update bbox
+        self.bboxsList = self.getBboxes()
  
         #find angles between pos and facing/pos and direction
-        facingAngle = tools.angleBetweenTwoPoints(self.pos(), self.facing)
-        directionAngle = tools.angleBetweenTwoPoints(self.pos(), self.direction)
+        facingAngle = toolsV2.angleBetweenTwoPoints(self.pos(), self.facing)
+        directionAngle = toolsV2.angleBetweenTwoPoints(self.pos(), self.direction)
         #print 'angles f and d', facingAngle, directionAngle
         
         #if angles are different
         #if facingAngle != directionAngle:
         difference = facingAngle - directionAngle
+        #rotate the surface
         self.rotate(-difference)
         
+        #updates gun and exhaust points
+        self.findPoints()
         
-        #cycle through flames.
-        if constants.frameNum % 15 == 0:
-                
-                if self.limbsNum >= len(self.surfaceLimbsList) - 1:
-                    self.limbsNum = 0
-                
-                else:
-                    self.limbsNum += 1
-                
-                
-                
-                pass
+               
+    #----------------------------------------------------------------------
+    def assemble2(self, images, index):
+        """takes all the images and deals with them, returning the right one"""
+        
+        self.spriteList = images
+        
+        #main body surface
+        try:
+            self.bodySurface = self.spriteList[index]
+        except TypeError:
+            print 'error, only one surface'
+            self.bodySurface = self.spriteList
+        
+        #etc stuff, flames, turrets etc
+        self.etc = {}
+        
+        if self.actType == 'ship':
+            flames = loadImages.loadImages(r'./art/flames/', 'png', (16, 16))
+            
+            self.etc['flames'] = flames
+            
+        
         
         
             
@@ -181,7 +263,6 @@ class Anything(object):
         - the main sprite images or body
         - the weapons/movement stuff
         - creates the final surface to blit and rotate on main screen"""
-        
         self.spriteList = images
        
         
@@ -255,11 +336,69 @@ class Anything(object):
         self.surface = newSurface
         return newSurface
        
+       
+    #----------------------------------------------------------------------
+    def combine(self):
+        """combines main body with etc parts like exhaust and turrets"""
+        
+        bodyRect = self.bodySurface.get_rect()
+        try:
+            flamesRect = self.etc['flames'][0].get_rect()
+        except KeyError:
+            #print 'key error, no flames'
+            pass
+        fullH = bodyRect.h
+        try:
+            fullW = bodyRect.w + flamesRect.w
+        except:
+            #print 'error'
+            fullW = bodyRect.w
+            
+            
+        fullSurface = toolsV2.createSurface(fullW, fullH)
+        
+        #blit body to surface
+        fullSurface.blit(self.bodySurface, (fullW - bodyRect.w, 0))
+        
+        #blit flames to surface
+        fullSurface = self.combineEtc(fullSurface)
+        
+        
+        #fullsurface is the complete sprite with exhaust and all
+        self.surface = fullSurface
+        
+        return self.surface
+    
+    #----------------------------------------------------------------------
+    def combineEtc(self, fullSurface):
+        """handles non body drawing ex flames"""
+        #called a second time, its called once in combine()
+        
+        #flames
+        if self.moving:
+            if self.actType != 'bullet':
+                try:
+                    flamesRect = self.etc['flames'][int(self.flamesIndex)].get_rect()   
+                
+                except IndexError:
+                    self.flamesIndex = 0
+                    flamesRect = self.etc['flames'][int(self.flamesIndex)].get_rect()
+                    
+                fullSurface.blit(self.etc['flames'][int(self.flamesIndex)],
+                                     (0, (flamesRect.h / 2)))
+                self.flamesIndex += .1
+        
+        return fullSurface
       
     #----------------------------------------------------------------------
     def die(self):
         """removes self from related lists, add to dead list"""
         
+        #print self, 'is removed'
+        
+        self.alive = False
+        
+        #remove self from all lists self is in
         for l in (lists.ANYTHINGs, lists.BULLETs):
             if self in l:
                 l.remove(self)
@@ -267,6 +406,31 @@ class Anything(object):
         lists.DEADs.append(self)
         
         
+    #----------------------------------------------------------------------
+    def findPoints(self):
+        """returns the coord of the outer perimeter of the actor"""
+        
+        #create a random anything instance
+        #self.point2 = toolsV2.vectors.rectPerimeter(
+                                    #self.rect,
+                                    #self.direction)
+
+        #new way to find front/gun point
+        self.gPoint = toolsV2.vectors.intersect_perimeter(
+                                    self.direction[0], 
+                                    self.direction[1],
+                                    self.rect.w, 
+                                    self.rect.h, ) 
+        self.gunPt = toolsV2.vectors.add(self.gPoint, self.rect.center)
+        
+        self.ePoint = toolsV2.vectors.intersect_perimeter(
+                                    self.direction[0]*-1, 
+                                    self.direction[1]*-1,
+                                    self.rect.w, 
+                                    self.rect.h, ) 
+        self.exPt = toolsV2.vectors.add(self.ePoint, self.rect.center)        
+        
+        #return self.gunPt
             
 
 ########################################################################
@@ -281,11 +445,22 @@ class Shooter(object):
         owner.components['shooter'] = self
         
         self.owner = owner
+        
+        self.kills = 0
 
         #hitpoints
         self.maxHP = maxHP
         if currentHP == 'maxHP':
             self.curHP = maxHP
+            
+    #----------------------------------------------------------------------
+    def takeDamage(self, damage):
+        """takes damage, and dies if necessary"""
+        
+        self.curHP -= damage
+        
+        if self.curHP <= 0:
+            self.owner.die()
             
             
     #----------------------------------------------------------------------
@@ -295,12 +470,17 @@ class Shooter(object):
         print 'firing'
         
         if ammo == 'bullet':
+            
+            
+            self.owner.point = (0, 0)
             #scale the direction by speed*2
-            dir = tools.vectors.scale(self.owner.direction, self.owner.speed*2)
+            dir = toolsV2.vectors.scale(self.owner.direction, self.owner.rect.w/2)
             #add the direction to self pos
-            pos = tools.vectors.add(self.owner.pos(), dir)
+            pos = toolsV2.vectors.add(self.owner.pos(), dir)
             #create the bullet at pos
-            Bullet(self.owner.topSurface, pos, self.owner.direction, self.owner.speed)
+            Bullet(self.owner.topSurface, self.owner.gunPt,
+                   self.owner.direction, self.owner.speed,
+                   self.owner)
         
         
         pass
@@ -311,8 +491,12 @@ class Projectle(Anything):
     """any time of projecttile to be fired"""
 
     #----------------------------------------------------------------------
-    def __init__(self, topSurface, pos, dir, spd):
+    def __init__(self, topSurface, pos, dir, spd, owner, actType='bullet'):
         """Constructor"""
+        imageListIn = loadImages.loadImages(r'./art/bullet/', 'png', (16, 16))
+        
+        super(Projectle, self).__init__(topSurface,
+                                     pos, imageListIn, actType)
         
         print 'spawned:', self
         #self.pos = pos
@@ -332,25 +516,31 @@ class Projectle(Anything):
         
         #direction
         self.direction = dir
+        self.facing = (1, 0)
         
-        #speed
+        #degrees sprite is rotated
+        self.currentRotation = 0
+        
+        
+        #speed 
         self.speed = spd
         
         #drawable surface
-        self.surface = self.imageList[0]
+        self.surface = self.imageList
         #self.surface.fill(constants.BLUE)
         
         self.topSurface = topSurface
         
-        #self.draw(topSurface)
+        #who fired it
+        self.owner = owner
+        
+        #bounding boxes, the perimiter of the rects, in a list
+        self.bboxsList = self.getBboxes()
+   
+        self.point = (0, 0)
+        self.point2 = (0, 0), (0, 0)
         
         
-    #----------------------------------------------------------------------
-    def rotate(self):
-        """testing overrides"""
-        
-        pass
-    
 
     #----------------------------------------------------------------------
     def die(self):
@@ -364,7 +554,7 @@ class Projectle(Anything):
         """changes the drawable surface to an explosion"""
         
         self.surface = loadImages.loadImages(r'./art/explosion/',
-                                             'png', (16, 16))[0]
+                                             'png', (16, 16))
         
     #----------------------------------------------------------------------
     def hit(self):
@@ -374,6 +564,15 @@ class Projectle(Anything):
         if hit != -1:
             print 'hey'
             
+    #----------------------------------------------------------------------
+    def update(self):
+        """"""
+        super(Projectle, self).update()
+        #update bbox
+        self.bboxsList = self.getBboxes()
+        
+        self.findPoints()
+            
             
         
 
@@ -382,13 +581,15 @@ class Bullet(Projectle):
     """projectile subclass, bullet uses owners speed, pass it in unchanged"""
 
     #----------------------------------------------------------------------
-    def __init__(self, topSurface, pos, dir, spd):
+    def __init__(self, topSurface, pos, dir, spd, owner):
         """Constructor"""
-        super(Bullet, self).__init__(topSurface, pos, dir, spd)
+        super(Bullet, self).__init__(topSurface, pos, dir, spd, owner)
         
         lists.BULLETs.append(self)
         
         self.moving = True
+        
+        self.damage = 10
         
         
         pass
@@ -402,8 +603,23 @@ class Bullet(Projectle):
         if self.wallHit:
             self.die()
             
+    #----------------------------------------------------------------------
+    def update(self):
+        """checks for collisions"""
+        super(Bullet, self).update()
         
-    
+               
+        for thing in lists.ANYTHINGs:
+            if self.rect.colliderect(thing.rect):
+                if thing  is not self.owner and thing is not self:
+                    print 'collided with', thing
+                    print 'thing width', thing.rect.w
+                    thing.components['shooter'].takeDamage(self.damage)
+                    if not thing.alive:
+                        print self.owner, 'got a kill'
+                        self.owner.components['shooter'].kills += 1
+                    #since it's a bullet,die
+                    self.die()
     
     
 
@@ -421,5 +637,6 @@ def spawnAnything(surface, imageList, pos = 'random'):
     
     #create a character
     character = Anything(surface, (x, y), imageList)
+    Shooter(character, maxHP=10)
     print 'Spawnname:', character.name, 'pos:', character.rect.center    
 

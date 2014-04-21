@@ -1,8 +1,8 @@
 '''Controls module for the project, contains keyboard, mouse and joypad handling'''
 
-import pygame as PG
+import pygame as PG, random
 
-import tools, actors, lists, constants
+import toolsV2, actors, lists, constants, pathing
 import loadImages
 
 #movement list
@@ -50,20 +50,20 @@ def initJoysticks():
 
 
 #----------------------------------------------------------------------
-def inputHandler():
-    """handles mouse and keyboard events"""
+def inputHandler(surface):
+    """handles mouse and keyboard events, surface is the main screen"""
     
     
     for e in PG.event.get():
             
         if e.type == PG.KEYDOWN \
              or e.type == PG.KEYUP: 
-            keyHandler(e)
+            keyHandler(e, surface)
             
         elif e.type == PG.MOUSEBUTTONDOWN \
              or e.type == PG.MOUSEBUTTONUP \
              or e.type == PG.MOUSEMOTION:
-            mouseHandler(e)
+            mouseHandler(e, surface)
             
         pass
 
@@ -78,21 +78,22 @@ def timeTheShit(n):
     
     a = timeit.timeit(here, number=n)
     
-    b = timeit.timeit(tools.there, number=n)
+    b = timeit.timeit(toolsV2.there, number=n)
     
-    from tools import there
+    from toolsV2 import there
 
     c = timeit.timeit(there, number=n)
     
     print a, b, c
 
 #----------------------------------------------------------------------
-def movementControls(action):
+def movementControls(action, surface):
     """handles movement controls. Ex: wasd"""
     print '\taction:', action
     
     if not lists.ANYTHINGs[0].moving:
         lists.ANYTHINGs[0].moving = True
+        
     print '\tdict result', dirDict[action]
     lists.ANYTHINGs[0].direction = dirDict[action]
     print '\tnew dir', lists.ANYTHINGs[0].direction
@@ -109,20 +110,29 @@ def shooterControls(action):
     """handles shooter controls. Ex: shoot bullet"""
 
     if action == 'shootBullet':
+        print '\t', 
         lists.ANYTHINGs[0].components['shooter'].fire()
         
     pass
 
 #----------------------------------------------------------------------
-def debugControls(action):
+def debugControls(action, surface):
     """handles debug controls. Ex: createActor"""
     
-    if action == 'createActor':
-        actors.spawnAnything(screen, imageList)
-    pass
-    
+    if action == 'createAnything':
+        try:
+            tile = random.choice(lists.all_tiles)
+            pos_chosen = random.choice(tile.coords)
+            
+            actors.spawnAnything(surface, loadImages.loadImages(
+                            r'./art/man/', 'png'),
+                            pos=pos_chosen)
+        
+        except IndexError as e:
+            print str(e).upper(), 'grid\'s probably not made, right click and try again'
+        
 #----------------------------------------------------------------------
-def keyHandler(e):
+def keyHandler(e, surface):
     """handles only keyboard"""
    
     #letter keys
@@ -135,6 +145,7 @@ def keyHandler(e):
     #else:
         #isLetter = 0
     if e.type == PG.KEYDOWN and e.key in xrange(256):
+        print 'caught the "', chr(e.key), '" key'
         
         #save the keydown key
         lists.keysDown.append(chr(e.key))
@@ -144,7 +155,7 @@ def keyHandler(e):
         #movement
         if chr(e.key) in movementCtrlsDict.keys():
             print 'start movement controls'
-            movementControls(movementCtrlsDict[chr(e.key)])
+            movementControls(movementCtrlsDict[chr(e.key)], surface)
             print 'end movement controls'
             
             
@@ -157,7 +168,7 @@ def keyHandler(e):
         #debug
         elif chr(e.key) in debugCtrlsDict.keys():
             print 'start debug controls'
-            debugControls(debugCtrlsDict[chr(e.key)])
+            debugControls(debugCtrlsDict[chr(e.key)], surface)
             print 'end debug controls'
             
         #other
@@ -165,34 +176,62 @@ def keyHandler(e):
             print e.key, 'is not assigned to a list'
             
             if isKey(e.key,'l'):
-                print 'caught', chr(e.key)
+                
                 
                 flames = loadImages.loadImages(r'./art/flames/', 'png', (16, 16))
                 
                 lists.flames = flames
                 constants.FLAMES = True
                 
-            elif isKey(e.key,'c'):
-                print 'caught', chr(e.key)
+            elif isKey(e.key,'z'):
                 
+                
+                plr = lists.ANYTHINGs[0]
                 #create a random anything instance
-                actors.spawnAnything(screen, imageList)
+                lists.ANYTHINGs[0].point2 = toolsV2.vectors.rectPerimeter(
+                                            lists.ANYTHINGs[0].rect,
+                                            lists.ANYTHINGs[0].direction)
     
+                #new way
+                lists.ANYTHINGs[0].point2 = toolsV2.vectors.intersect_perimeter(
+                                            plr.direction[0], 
+                                            plr.direction[1],
+                                            plr.rect.w, 
+                                            plr.rect.h, ) 
+                plr.point2 = toolsV2.vectors.add(plr.point2, plr.rect.center)
                 
             elif isKey(e.key,'m'):
-                print 'caught', chr(e.key)
                 
                 x, y = lists.ANYTHINGs[0].pos()
                 PG.mouse.set_pos(x, y)
                 
             elif isKey(e.key, 'q'):
-                print 'caught', chr(e.key)
                 
                 print 'facing', lists.ANYTHINGs[0].facing
                 print 'direction', lists.ANYTHINGs[0].direction
                 print 'pos', lists.ANYTHINGs[0].pos()
                 print 'mouse', PG.mouse.get_pos()
-    
+                
+            elif isKey(e.key, 'h'):
+                
+                #loads the image of a house and counts the points that are transparent
+                house = loadImages.loadImages(r'./art/house/', 'house1.png', 'orig')
+                trans_points = []
+                colorkey = house.get_colorkey()
+                for x in xrange(house.get_rect().w-1):
+                    for y in xrange(house.get_rect().h-1):
+                        color = house.get_at((x, y))
+                        if color == colorkey:
+                            trans_points.append((x, y))
+                            pass
+                #adds the transparent points to the list
+                lists.DEBUGs['house'] = house, trans_points
+                print 'number of transparent points in house', len(trans_points)
+                
+            elif isKey(e.key, 'p'):
+                global path_found
+                path_found = pathing.AStar(lists.TILEs[0][0], lists.TILEs[10][22])
+                
     elif e.type == PG.KEYUP and e.key in xrange(256):
         lists.keysDown.remove(chr(e.key))
         #print 'removed', e.key, lists.keysDown
@@ -220,7 +259,7 @@ def isKey(event, key):
      
         
 #----------------------------------------------------------------------
-def mouseHandler(e):
+def mouseHandler(e, surface):
     """handles only mouse events"""
     
     #if left-click
@@ -230,37 +269,45 @@ def mouseHandler(e):
         lists.ANYTHINGs[0].moving = True
         #try:
         #find the angle between player, direction and mouse
-        angle = tools.vectors.angleObjToAnother(lists.ANYTHINGs[0], e)
-        #angle = tools.vectors.sineRule(e.pos,
-                                       #lists.ANYTHINGs[0].direction,
-                                       #lists.ANYTHINGs[0].pos())
-        #print 'angle between mouse and pos:', angle
         
-        #rotate direction by angle
-        newDirRotated = tools.vectors.rotate(lists.ANYTHINGs[0].direction, angle)
-        
-        #change player dir
-        lists.ANYTHINGs[0].direction = newDirRotated
-        
-        angle = tools.vectors.angleObjToAnother(lists.ANYTHINGs[0], e)
-        #angle = tools.vectors.sineRule(e.pos,
-                                       #lists.ANYTHINGs[0].direction,
-                                       #lists.ANYTHINGs[0].pos())            
-        #print '2angle between mouse and pos:', angle
-        
-        if angle != 0:
-            print 'wrong way'
+        isSameAngle = 0
+        count = 0
+        while not isSameAngle:
+                
+            angle = toolsV2.vectors.angleOfTwoPoints(lists.ANYTHINGs[0].pos(),
+                                                     lists.ANYTHINGs[0].direction,
+                                                     e.pos)
+            print 'angle between mouse and direction', angle
             
             #rotate direction by angle
-            newDirRotated = tools.vectors.rotate(lists.ANYTHINGs[0].direction, -angle)
+            newDirRotated = toolsV2.vectors.rotate(lists.ANYTHINGs[0].direction,
+                                                 angle)
+            
+            
+            angle = toolsV2.vectors.angleOfTwoPoints(lists.ANYTHINGs[0].pos(),
+                                                     newDirRotated,
+                                                     e.pos)
+            
+            print 'angle between mouse and newDir', angle, 'that number should be zero'
             
             #change player dir
             lists.ANYTHINGs[0].direction = newDirRotated                
-
-        #except RuntimeError:
-            #print 'runtme error'
-            
-        #pass
+    
+            if angle == 0:
+                isSameAngle = 1
+                
+            else:
+                #make sure it doesn't run forever
+                count += 1
+                if count > 100:
+                    print 'stopped inf loop in rotation'
+                    break
+    
+            #except RuntimeError:
+                #print 'runtme error'
+                
+            #pass
+        print '\n'
     
     elif e.type == PG.MOUSEBUTTONUP and e.button == 1:
         try:
@@ -273,8 +320,8 @@ def mouseHandler(e):
     #elif right-click
     elif e.type == PG.MOUSEBUTTONDOWN and e.button == 3:
         
-        #angle mouse, dir
-        print 'click, angle between', tools.angleBetweenTwoPoints(e.pos, lists.ANYTHINGs[0].direction)
+        
+        lists.TILEs = toolsV2.createGrid()
         pass
         
     #elif mouse moved
@@ -286,16 +333,22 @@ def mouseHandler(e):
     #elif scroll up
     elif e.type == PG.MOUSEBUTTONDOWN and e.button == 4:
     
-        #rotate all by -45
-        for thing in lists.ANYTHINGs:
-            thing.rotate(-45)
+        ##rotate all by -45
+        #for thing in lists.ANYTHINGs:
+            #thing.rotate(-45)
     
+        #lists.ANYTHINGs[0].bodySurface = \
+            #PG.transform.scale2x(lists.ANYTHINGs[0].bodySurface)
+        
+        PG.display.iconify()
     
     #elif scroll down
     elif e.type == PG.MOUSEBUTTONDOWN and e.button == 5:
     
-        #rotate player by 45
-        lists.ANYTHINGs[0].rotate(45)
+        ##rotate player by 45
+        #lists.ANYTHINGs[0].rotate(45)
+        
+        lists.ANYTHINGs[0].bodySurface = lists.ANYTHINGs[0].spriteList[1]
         
         pass
     

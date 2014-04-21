@@ -6,8 +6,21 @@ ANYTHINGs = []
 #keys held down
 keysDown = []
 
-  #bullets
+#bullets
 BULLETs = []
 
-  #dead things
+#dead things
 DEADs = []
+
+DEBUGs = {}
+
+#misc things to draw
+#draws lines from mouse and direction
+'angleDrawer'
+FUNCs = []
+
+
+#tiles
+TILEs = []
+
+all_tiles = []

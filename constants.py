@@ -1,9 +1,12 @@
-import tools
+import toolsV2
 
 #screen
 WIDTH = 800
 HEIGHT = 600
 BACKGROUND = (225,235,205)
+
+#grid
+CELLSIZE = 25
 
 #colors
 BLACK = (0, 0, 0)
@@ -30,10 +33,8 @@ unit = 25
 #directions
 
 #names
-namesAmericanMale = tools.loadTextFile(r'AmericanMaleNames.txt')
+namesAmericanMale = toolsV2.loadTextFile(r'AmericanMaleNames.txt')
 
 #graphics
-FLAMES = False
-flameNum = 0
 
 

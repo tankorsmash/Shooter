@@ -1,0 +1,23 @@
+#!wing
+#!version=4.0
+##################################################################
+# Wing IDE project file                                          #
+##################################################################
+[project attributes]
+proj.directory-list = [{'dirloc': loc('.'),
+                        'excludes': [u'AmericanMaleNames.txt',
+                                     u'tools.py',
+                                     u'lineCounter.py',
+                                     u'art',
+                                     u'Squares 2'],
+                        'filter': '*',
+                        'include_hidden': False,
+                        'recursive': True,
+                        'watch_for_changes': True}]
+proj.file-list = [loc('actors.py'),
+                  loc('constants.py'),
+                  loc('lists.py'),
+                  loc('loadImages.py'),
+                  loc('main.py')]
+proj.file-type = 'shared'
+proj.main-file = loc('main.py')
